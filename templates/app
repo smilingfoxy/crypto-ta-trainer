@@ -1,0 +1,104 @@
+from dash import Dash, dcc, html, Input, Output
+import plotly.graph_objs as go
+import pandas as pd
+from datetime import timedelta
+
+# Dummy data (replace with your fetch_binance_data and add_technical_indicators)
+def generate_dummy_data(start_date, periods, timeframe):
+    time_delta = {'1h': timedelta(hours=1), '4h': timedelta(hours=4), '1d': timedelta(days=1)}
+    times = [start_date + i * time_delta[timeframe] for i in range(periods)]
+    # Simulate price movement with some variation
+    base_price = 85000
+    prices = [base_price - i * 50 + (i % 5) * 20 - 10 for i in range(periods)]  # Add small random variation
+    return pd.DataFrame({
+        'time': times,
+        'open': prices,
+        'high': [p + 50 + (i % 10) * 5 for i, p in enumerate(prices)],
+        'low': [p - 50 - (i % 10) * 5 for i, p in enumerate(prices)],
+        'close': [p + (i % 3) * 10 - 5 for i, p in enumerate(prices)]
+    })
+
+# App initialization
+app = Dash(__name__)
+
+# Generate dummy data
+start_date = pd.to_datetime('2025-04-05 00:00:00')
+data = generate_dummy_data(start_date, 200, '1h')
+training_data = data.iloc[:50].copy()
+revealed_data = data.iloc[50:].copy()
+
+app.layout = html.Div([
+    html.H1("Crypto TA Trainer"),
+    dcc.Dropdown(
+        id='pair-dropdown',
+        options=[{'label': 'BTC/USDT', 'value': 'BTC/USDT'}, {'label': 'ETH/USDT', 'value': 'ETH/USDT'}],
+        value='BTC/USDT'
+    ),
+    dcc.Dropdown(
+        id='timeframe-dropdown',
+        options=[{'label': '1 Hour', 'value': '1h'}, {'label': '4 Hours', 'value': '4h'}, {'label': '1 Day', 'value': '1d'}],
+        value='1h'
+    ),
+    dcc.Checklist(
+        id='indicators-checklist',
+        options=[
+            {'label': 'SMA 20', 'value': 'SMA_20'},
+            {'label': 'SMA 50', 'value': 'SMA_50'},
+            {'label': 'RSI', 'value': 'RSI'},
+            {'label': 'MACD', 'value': 'MACD'}
+        ],
+        value=['SMA_20', 'SMA_50']
+    ),
+    html.Button('Submit Analysis', id='submit-button', n_clicks=0),
+    html.Div(id='mode-text'),
+    dcc.Graph(id='candlestick-graph')
+])
+
+@app.callback(
+    [Output('candlestick-graph', 'figure'),
+     Output('mode-text', 'children')],
+    [Input('submit-button', 'n_clicks'),
+     Input('pair-dropdown', 'value'),
+     Input('timeframe-dropdown', 'value'),
+     Input('indicators-checklist', 'value')]
+)
+def update_graph(n_clicks, pair, timeframe, indicators):
+    try:
+        if n_clicks > 0:
+            combined_data = pd.concat([training_data, revealed_data]).reset_index(drop=True)
+            mode = 'Analysis Mode (200 Candles)'
+        else:
+            combined_data = training_data
+            mode = 'Training Mode (50 Candles)'
+
+        fig = go.Figure()
+        fig.add_trace(go.Candlestick(
+            x=combined_data['time'],
+            open=combined_data['open'],
+            high=combined_data['high'],
+            low=combined_data['low'],
+            close=combined_data['close'],
+            increasing_line_color='green' if n_clicks == 0 else 'lightgreen',
+            decreasing_line_color='red' if n_clicks == 0 else 'pink',
+            name='Candles'
+        ))
+        if 'Analysis Mode' in mode and len(combined_data) > 50:
+            fig.add_vline(x=combined_data['time'].iloc[49], line_dash="dash", line_color="white", annotation_text="Training Ends Here")
+
+        fig.update_layout(
+            title=f"Crypto Chart ({pair}) - {mode}",
+            xaxis_title="Time",
+            yaxis_title="Price (USDT)",
+            height=500,
+            template="plotly_dark",
+            xaxis=dict(
+                tickformat="%Y-%m-%d %H:%M"
+            ),
+            margin=dict(t=50, b=50, r=50, l=50)
+        )
+        return fig, f"Mode: {mode}"
+    except Exception as e:
+        return go.Figure(), f"Error: {str(e)}"
+
+if __name__ == '__main__':
+    app.run(debug=True)
