@@ -42,7 +42,6 @@ def generate_dummy_data(start_date, periods, timeframe):
 
 def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
     try:
-        # Convert pair and timeframe to Yahoo Finance format
         symbol_map = {
             'BTC/USDT': 'BTC-USD',
             'ETH/USDT': 'ETH-USD',
@@ -55,61 +54,28 @@ def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
             'MATIC/USDT': 'MATIC-USD'
         }
         
-        interval_map = {
-            '5m': '5m',
-            '15m': '15m',
-            '30m': '30m',
-            '1h': '1h',
-            '4h': '4h',
-            '1d': '1d'
-        }
-        
         symbol = symbol_map.get(pair, 'BTC-USD')
-        interval = interval_map.get(timeframe, '1h')
-        
-        # Fetch more recent data with appropriate period based on timeframe
-        period_map = {
-            '5m': '5d',
-            '15m': '15d',
-            '30m': '30d',
-            '1h': '60d',
-            '4h': '120d',
-            '1d': '500d'
-        }
-        period = period_map.get(timeframe, '60d')
         
         # Fetch data from Yahoo Finance
-        # Add debug prints
-        print(f"Fetching {symbol} data with {interval} interval")
         ticker = yf.Ticker(symbol)
-        df = ticker.history(interval=interval, period=period)
-        print(f"Received {len(df)} candles")
+        df = ticker.history(period='60d', interval=timeframe)
         
-        if len(df) < 50:
-            print("Not enough data, trying with max period")
-            df = ticker.history(interval=interval, period='max')
-            print(f"Received {len(df)} candles with max period")
-        
-        # Rename columns to match our format
+        # Basic OHLC data only
+        df = df[['Open', 'High', 'Low', 'Close']]
         df = df.rename(columns={
             'Open': 'open',
             'High': 'high',
             'Low': 'low',
-            'Close': 'close',
-            'Volume': 'volume'
+            'Close': 'close'
         })
         
         # Reset index to make datetime a column
         df = df.reset_index()
         df = df.rename(columns={'Datetime': 'time', 'Date': 'time'})
         
-        # Ensure we have enough data points
-        if len(df) < limit:
-            print(f"Warning: Only got {len(df)} candles instead of {limit}")
-            return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
-        
         # Take the last 'limit' rows
-        df = df.tail(limit)
+        if len(df) > limit:
+            df = df.tail(limit)
         
         return df
         
