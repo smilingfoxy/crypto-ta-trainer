@@ -40,43 +40,43 @@ def generate_dummy_data(start_date, periods, timeframe):
     
     return df
 
-def fetch_market_data(pair='BTC/USDT', timeframe='1h', limit=200):
+def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
     try:
-        exchange = ccxt.binance({
-            'enableRateLimit': True,
-            'options': {
-                'defaultType': 'spot',  # Use spot market
-                'adjustForTimeDifference': True,
-                'recvWindow': 60000
-            }
-        })
+        exchange = ccxt.binance()
         
-        try:
-            now = exchange.milliseconds()
-            three_years = 3 * 365 * 24 * 60 * 60 * 1000
-            start_timestamp = now - three_years
-            
-            all_ohlcv = exchange.fetch_ohlcv(
+        # Calculate timestamps for 3 years of data
+        now = exchange.milliseconds()
+        three_years = 3 * 365 * 24 * 60 * 60 * 1000  # 3 years in milliseconds
+        start_timestamp = now - three_years
+        
+        all_ohlcv = []
+        current_timestamp = start_timestamp
+        
+        # Fetch data in chunks to avoid rate limits
+        while current_timestamp < now and len(all_ohlcv) < limit:
+            chunk = exchange.fetch_ohlcv(
                 pair, 
                 timeframe=timeframe,
-                since=start_timestamp,
-                limit=limit
+                since=current_timestamp,
+                limit=1000
             )
-            
-            df = pd.DataFrame(all_ohlcv, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
-            df['time'] = pd.to_datetime(df['time'], unit='ms')
-            return df
-            
-        except Exception as api_error:
-            print(f"Falling back to dummy data due to API error: {api_error}")
-            return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
-            
+            if not chunk:
+                break
+                
+            all_ohlcv.extend(chunk)
+            current_timestamp = chunk[-1][0] + 1
+        
+        # Take random subset of the historical data
+        if len(all_ohlcv) > limit:
+            start_idx = random.randint(0, len(all_ohlcv) - limit)
+            all_ohlcv = all_ohlcv[start_idx:start_idx + limit]
+        
+        df = pd.DataFrame(all_ohlcv, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
+        df['time'] = pd.to_datetime(df['time'], unit='ms')
+        return df
     except Exception as e:
-        print(f"Error in fetch_market_data: {e}")
+        print(f"Error fetching data: {e}")
         return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
-
-# Update all references to fetch_binance_data to use fetch_market_data
-data = fetch_market_data(limit=1000)
 
 # ===============================
 # DATA PROCESSING
@@ -185,7 +185,7 @@ def get_random_training_segment(df, segment_size=100):
     return training_data, future_data
 
 # Generate initial data
-data = fetch_market_data(limit=1000)  # Changed from fetch_binance_data
+data = fetch_binance_data(limit=1000)
 data = add_technical_indicators(data)
 training_data, revealed_data = get_random_training_segment(data)
 
@@ -337,7 +337,7 @@ def update_graph(reset_clicks, up_clicks, down_clicks, pair, timeframe):
 
         # Auto-refresh on pair or timeframe change
         if button_id in ['pair-dropdown', 'timeframe-dropdown', 'reset-button']:
-            new_data = fetch_market_data(pair=pair, timeframe=timeframe, limit=1000)  # Changed from fetch_binance_data
+            new_data = fetch_binance_data(pair=pair, timeframe=timeframe, limit=1000)
             new_data = add_technical_indicators(new_data)
             training_data, revealed_data = get_random_training_segment(new_data)
             mode = 'Training Mode (First 50 Candles)'
