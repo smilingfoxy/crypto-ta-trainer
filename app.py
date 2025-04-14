@@ -48,7 +48,8 @@ def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
                 'defaultType': 'future',  # Use futures market
                 'adjustForTimeDifference': True,
                 'recvWindow': 60000,
-                'defaultTimeInForce': 'GTC'
+                'defaultTimeInForce': 'GTC',
+                'warnOnFetchOhlcvLimitArgument': False,
             },
             'urls': {
                 'api': {
