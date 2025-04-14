@@ -7,6 +7,8 @@ import pandas as pd
 from datetime import timedelta
 import random
 import ccxt
+# Add to imports at the top
+import yfinance as yf
 
 # ===============================
 # DATA GENERATION AND FETCHING
@@ -42,52 +44,56 @@ def generate_dummy_data(start_date, periods, timeframe):
 
 def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
     try:
-        exchange = ccxt.binance({
-            'enableRateLimit': True,
-            'options': {
-                'defaultType': 'future',  # Use futures market
-                'adjustForTimeDifference': True,
-                'recvWindow': 60000,
-                'defaultTimeInForce': 'GTC',
-                'warnOnFetchOhlcvLimitArgument': False,
-            },
-            'urls': {
-                'api': {
-                    'public': 'https://testnet.binancefuture.com/fapi/v1',
-                    'private': 'https://testnet.binancefuture.com/fapi/v1',
-                }
-            }
+        # Convert pair and timeframe to Yahoo Finance format
+        symbol_map = {
+            'BTC/USDT': 'BTC-USD',
+            'ETH/USDT': 'ETH-USD',
+            'XRP/USDT': 'XRP-USD',
+            'BNB/USDT': 'BNB-USD',
+            'SOL/USDT': 'SOL-USD',
+            'ADA/USDT': 'ADA-USD',
+            'DOGE/USDT': 'DOGE-USD',
+            'DOT/USDT': 'DOT-USD',
+            'MATIC/USDT': 'MATIC-USD'
+        }
+        
+        interval_map = {
+            '5m': '5m',
+            '15m': '15m',
+            '30m': '30m',
+            '1h': '1h',
+            '4h': '4h',
+            '1d': '1d'
+        }
+        
+        symbol = symbol_map.get(pair, 'BTC-USD')
+        interval = interval_map.get(timeframe, '1h')
+        
+        # Fetch data from Yahoo Finance
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(interval=interval, period='60d')
+        
+        # Rename columns to match our format
+        df = df.rename(columns={
+            'Open': 'open',
+            'High': 'high',
+            'Low': 'low',
+            'Close': 'close',
+            'Volume': 'volume'
         })
         
-        try:
-            # Load markets first to ensure API is accessible
-            exchange.load_markets()
-            
-            now = exchange.milliseconds()
-            three_years = 3 * 365 * 24 * 60 * 60 * 1000
-            start_timestamp = now - three_years
-            
-            chunk = exchange.fetch_ohlcv(
-                pair, 
-                timeframe=timeframe,
-                since=start_timestamp,
-                limit=limit
-            )
-            
-            if not chunk or len(chunk) == 0:
-                print(f"No data returned from API for {pair}, falling back to dummy data")
-                return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
-            
-            df = pd.DataFrame(chunk, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
-            df['time'] = pd.to_datetime(df['time'], unit='ms')
-            return df
-            
-        except Exception as api_error:
-            print(f"API Error: {api_error}")
-            return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
-            
+        # Reset index to make datetime a column
+        df = df.reset_index()
+        df = df.rename(columns={'Datetime': 'time', 'Date': 'time'})
+        
+        # Take the last 'limit' rows
+        if len(df) > limit:
+            df = df.tail(limit)
+        
+        return df
+        
     except Exception as e:
-        print(f"Configuration Error: {e}")
+        print(f"Error fetching data: {e}")
         return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
 
 # ===============================
