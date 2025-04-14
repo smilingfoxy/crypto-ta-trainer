@@ -42,38 +42,51 @@ def generate_dummy_data(start_date, periods, timeframe):
 
 def fetch_market_data(pair='BTC/USDT', timeframe='1h', limit=200):
     try:
-        # Use static CSV data from cryptodatadownload.com
-        if timeframe == '1d':
-            url = f"https://www.cryptodatadownload.com/cdd/Binance_{pair.replace('/', '')}_d.csv"
-        else:
-            # For non-daily timeframes, default to daily and later resample
-            url = f"https://www.cryptodatadownload.com/cdd/Binance_{pair.replace('/', '')}_d.csv"
-        
-        # Read CSV file
-        df = pd.read_csv(url, skiprows=1)
-        
-        # Format the dataframe
-        df['time'] = pd.to_datetime(df['Date'])
-        df = df.rename(columns={
-            'Open': 'open',
-            'High': 'high',
-            'Low': 'low',
-            'Close': 'close',
-            'Volume USDT': 'volume'  # Changed from 'Volume' to 'Volume USDT'
+        exchange = ccxt.binance({
+            'enableRateLimit': True,
+            'options': {
+                'defaultType': 'future',  # Use futures market instead of spot
+                'adjustForTimeDifference': True,
+                'recvWindow': 60000,
+                'defaultTimeInForce': 'GTC',
+                'warnOnFetchOhlcvLimitArgument': False,
+            },
+            'urls': {
+                'api': {
+                    'public': 'https://fapi.binance.com/fapi/v1',
+                    'private': 'https://fapi.binance.com/fapi/v1',
+                }
+            }
         })
         
-        # Sort by time and select required columns
-        df = df[['time', 'open', 'high', 'low', 'close', 'volume']].sort_values('time')
-        
-        # Convert string columns to float
-        for col in ['open', 'high', 'low', 'close', 'volume']:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-        
-        # Take only the last 'limit' rows
-        df = df.tail(limit)
-        
-        print(f"Successfully fetched {len(df)} candles for {pair}")
-        return df
+        try:
+            now = exchange.milliseconds()
+            three_years = 3 * 365 * 24 * 60 * 60 * 1000
+            start_timestamp = now - three_years
+            
+            # Load markets first
+            exchange.load_markets()
+            
+            all_ohlcv = exchange.fetch_ohlcv(
+                pair, 
+                timeframe=timeframe,
+                since=start_timestamp,
+                limit=limit
+            )
+            
+            if not all_ohlcv or len(all_ohlcv) == 0:
+                print(f"No data returned from API for {pair}, falling back to dummy data")
+                return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
+            
+            df = pd.DataFrame(all_ohlcv, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
+            df['time'] = pd.to_datetime(df['time'], unit='ms')
+            
+            print(f"Successfully fetched {len(df)} candles for {pair}")
+            return df
+            
+        except Exception as api_error:
+            print(f"Falling back to dummy data due to API error: {api_error}")
+            return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
             
     except Exception as e:
         print(f"Error in fetch_market_data: {e}")
