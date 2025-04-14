@@ -42,11 +42,25 @@ def generate_dummy_data(start_date, periods, timeframe):
 
 def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
     try:
-        exchange = ccxt.binance()
+        exchange = ccxt.binance({
+            'enableRateLimit': True,
+            'options': {
+                'defaultType': 'future',  # Use futures market
+                'adjustForTimeDifference': True,
+                'recvWindow': 60000,
+                'defaultTimeInForce': 'GTC'
+            },
+            'urls': {
+                'api': {
+                    'public': 'https://fapi.binance.com/fapi/v1',
+                    'private': 'https://fapi.binance.com/fapi/v1',
+                }
+            }
+        })
         
         # Calculate timestamps for 3 years of data
         now = exchange.milliseconds()
-        three_years = 3 * 365 * 24 * 60 * 60 * 1000  # 3 years in milliseconds
+        three_years = 3 * 365 * 24 * 60 * 60 * 1000
         start_timestamp = now - three_years
         
         all_ohlcv = []
