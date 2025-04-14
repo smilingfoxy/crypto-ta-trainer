@@ -6,8 +6,6 @@ import plotly.graph_objs as go
 import pandas as pd
 from datetime import timedelta
 import random
-import ccxt
-# Add to imports at the top
 import yfinance as yf
 
 # ===============================
