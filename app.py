@@ -67,9 +67,23 @@ def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
         symbol = symbol_map.get(pair, 'BTC-USD')
         interval = interval_map.get(timeframe, '1h')
         
+        # Fetch more recent data with appropriate period based on timeframe
+        period_map = {
+            '5m': '5d',
+            '15m': '15d',
+            '30m': '30d',
+            '1h': '60d',
+            '4h': '120d',
+            '1d': '500d'
+        }
+        period = period_map.get(timeframe, '60d')
+        
         # Fetch data from Yahoo Finance
         ticker = yf.Ticker(symbol)
-        df = ticker.history(interval=interval, period='60d')
+        df = ticker.history(interval=interval, period=period)
+        
+        if len(df) < 50:  # If not enough data, try with a longer period
+            df = ticker.history(interval=interval, period='max')
         
         # Rename columns to match our format
         df = df.rename(columns={
@@ -84,9 +98,13 @@ def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
         df = df.reset_index()
         df = df.rename(columns={'Datetime': 'time', 'Date': 'time'})
         
+        # Ensure we have enough data points
+        if len(df) < limit:
+            print(f"Warning: Only got {len(df)} candles instead of {limit}")
+            return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
+        
         # Take the last 'limit' rows
-        if len(df) > limit:
-            df = df.tail(limit)
+        df = df.tail(limit)
         
         return df
         
