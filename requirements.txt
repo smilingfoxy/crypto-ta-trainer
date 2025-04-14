@@ -3,5 +3,4 @@ gunicorn
 dash
 plotly
 pandas
-ccxt
-cryptocom.exchange
+yfinance
