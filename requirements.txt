@@ -1,2 +1,6 @@
 Flask
 gunicorn
+dash
+plotly
+pandas
+ccxt
