@@ -59,11 +59,15 @@ def fetch_market_data(pair='BTC/USDT', timeframe='1h', limit=200):
             'High': 'high',
             'Low': 'low',
             'Close': 'close',
-            'Volume': 'volume'
+            'Volume USDT': 'volume'  # Changed from 'Volume' to 'Volume USDT'
         })
         
         # Sort by time and select required columns
         df = df[['time', 'open', 'high', 'low', 'close', 'volume']].sort_values('time')
+        
+        # Convert string columns to float
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
         
         # Take only the last 'limit' rows
         df = df.tail(limit)
