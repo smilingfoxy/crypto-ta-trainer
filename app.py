@@ -184,7 +184,7 @@ def get_random_training_segment(df, segment_size=100):
     return training_data, future_data
 
 # Generate initial data
-data = fetch_binance_data(limit=1000)
+data = fetch_market_data(limit=1000)  # Changed from fetch_binance_data
 data = add_technical_indicators(data)
 training_data, revealed_data = get_random_training_segment(data)
 
@@ -336,7 +336,7 @@ def update_graph(reset_clicks, up_clicks, down_clicks, pair, timeframe):
 
         # Auto-refresh on pair or timeframe change
         if button_id in ['pair-dropdown', 'timeframe-dropdown', 'reset-button']:
-            new_data = fetch_binance_data(pair=pair, timeframe=timeframe, limit=1000)
+            new_data = fetch_market_data(pair=pair, timeframe=timeframe, limit=1000)  # Changed from fetch_binance_data
             new_data = add_technical_indicators(new_data)
             training_data, revealed_data = get_random_training_segment(new_data)
             mode = 'Training Mode (First 50 Candles)'
