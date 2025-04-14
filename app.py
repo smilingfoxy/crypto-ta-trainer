@@ -53,44 +53,41 @@ def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
             },
             'urls': {
                 'api': {
-                    'public': 'https://fapi.binance.com/fapi/v1',
-                    'private': 'https://fapi.binance.com/fapi/v1',
+                    'public': 'https://testnet.binancefuture.com/fapi/v1',
+                    'private': 'https://testnet.binancefuture.com/fapi/v1',
                 }
             }
         })
         
-        # Calculate timestamps for 3 years of data
-        now = exchange.milliseconds()
-        three_years = 3 * 365 * 24 * 60 * 60 * 1000
-        start_timestamp = now - three_years
-        
-        all_ohlcv = []
-        current_timestamp = start_timestamp
-        
-        # Fetch data in chunks to avoid rate limits
-        while current_timestamp < now and len(all_ohlcv) < limit:
+        try:
+            # Load markets first to ensure API is accessible
+            exchange.load_markets()
+            
+            now = exchange.milliseconds()
+            three_years = 3 * 365 * 24 * 60 * 60 * 1000
+            start_timestamp = now - three_years
+            
             chunk = exchange.fetch_ohlcv(
                 pair, 
                 timeframe=timeframe,
-                since=current_timestamp,
-                limit=1000
+                since=start_timestamp,
+                limit=limit
             )
-            if not chunk:
-                break
-                
-            all_ohlcv.extend(chunk)
-            current_timestamp = chunk[-1][0] + 1
-        
-        # Take random subset of the historical data
-        if len(all_ohlcv) > limit:
-            start_idx = random.randint(0, len(all_ohlcv) - limit)
-            all_ohlcv = all_ohlcv[start_idx:start_idx + limit]
-        
-        df = pd.DataFrame(all_ohlcv, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
-        df['time'] = pd.to_datetime(df['time'], unit='ms')
-        return df
+            
+            if not chunk or len(chunk) == 0:
+                print(f"No data returned from API for {pair}, falling back to dummy data")
+                return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
+            
+            df = pd.DataFrame(chunk, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
+            df['time'] = pd.to_datetime(df['time'], unit='ms')
+            return df
+            
+        except Exception as api_error:
+            print(f"API Error: {api_error}")
+            return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
+            
     except Exception as e:
-        print(f"Error fetching data: {e}")
+        print(f"Configuration Error: {e}")
         return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
 
 # ===============================
