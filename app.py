@@ -79,11 +79,16 @@ def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
         period = period_map.get(timeframe, '60d')
         
         # Fetch data from Yahoo Finance
+        # Add debug prints
+        print(f"Fetching {symbol} data with {interval} interval")
         ticker = yf.Ticker(symbol)
         df = ticker.history(interval=interval, period=period)
+        print(f"Received {len(df)} candles")
         
-        if len(df) < 50:  # If not enough data, try with a longer period
+        if len(df) < 50:
+            print("Not enough data, trying with max period")
             df = ticker.history(interval=interval, period='max')
+            print(f"Received {len(df)} candles with max period")
         
         # Rename columns to match our format
         df = df.rename(columns={
@@ -225,11 +230,14 @@ def find_valid_segments(df, segment_size=100, min_price_change=1.0):
 
 # Modify get_random_training_segment function
 def get_random_training_segment(df, segment_size=100):
+    print(f"Total data points: {len(df)}")
+    
     if len(df) < segment_size:
+        print("Not enough data for segment")
         return None, None
     
-    # Find valid segments
     valid_segments = find_valid_segments(df, segment_size)
+    print(f"Found {len(valid_segments)} valid segments")
     
     if not valid_segments:
         # If no valid segments found, fall back to random selection
