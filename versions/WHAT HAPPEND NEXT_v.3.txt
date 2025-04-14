@@ -1,0 +1,360 @@
+from dash import Dash, dcc, html, Input, Output, callback_context
+import plotly.graph_objs as go
+import pandas as pd
+from datetime import timedelta
+import random  # Add this at the top with other imports
+import ccxt
+
+# Dummy data (replace with your fetch_binance_data and add_technical_indicators)
+# Update time_delta in generate_dummy_data
+def generate_dummy_data(start_date, periods, timeframe):
+    time_delta = {
+        '5m': timedelta(minutes=5),
+        '15m': timedelta(minutes=15),
+        '30m': timedelta(minutes=30),
+        '1h': timedelta(hours=1),
+        '4h': timedelta(hours=4),
+        '1d': timedelta(days=1)
+    }
+    times = [start_date + i * time_delta[timeframe] for i in range(periods)]
+    
+    base_price = 85000
+    prices = []
+    current_price = base_price
+    for i in range(periods):
+        change = (random.random() - 0.5) * 200  # Random change between -100 and +100
+        current_price += change
+        prices.append(current_price)
+    
+    df = pd.DataFrame({
+        'time': times,
+        'open': prices,
+        'close': [p + (random.random() - 0.5) * 50 for p in prices],
+        'high': [p + abs(random.random() * 100) for p in prices],
+        'low': [p - abs(random.random() * 100) for p in prices]
+    })
+    
+    return df
+
+def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
+    try:
+        exchange = ccxt.binance()
+        ohlcv = exchange.fetch_ohlcv(pair, timeframe=timeframe, limit=limit)
+        df = pd.DataFrame(ohlcv, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
+        df['time'] = pd.to_datetime(df['time'], unit='ms')
+        return df
+    except Exception as e:
+        print(f"Error fetching data: {e}")
+        return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
+
+# Remove technical indicators calculation
+def add_technical_indicators(df):
+    # Keeping the function but removing all indicators
+    return df
+
+# Update the layout - remove indicators checklist
+# App initialization
+app = Dash(__name__)
+
+# Add configuration options for the graph
+config = {
+    'scrollZoom': True,
+    'displayModeBar': True,
+    'modeBarButtonsToAdd': [
+        'drawline',
+        'drawopenpath',
+        'drawclosedpath',
+        'drawcircle',
+        'drawrect',
+        'eraseshape',
+        'zoomIn2d',
+        'zoomOut2d',
+        'autoScale2d',
+        'resetScale2d'
+    ],
+    'displaylogo': False,
+    'toImageButtonOptions': {
+        'format': 'png',
+        'filename': 'chart_image',
+        'height': 800,
+        'width': 1200,
+        'scale': 2
+    }
+}
+
+# Function to get random training segment
+def get_random_training_segment(df, segment_size=100):
+    if len(df) < segment_size:
+        return None, None
+    
+    max_start = len(df) - segment_size
+    start_idx = random.randint(0, max_start)
+    end_idx = start_idx + segment_size
+    
+    full_segment = df.iloc[start_idx:end_idx].copy()
+    training_data = full_segment.iloc[:50].copy()  # First 50 candles
+    future_data = full_segment.iloc[50:].copy()    # Next 50 candles
+    return training_data, future_data
+
+# Generate initial data
+data = fetch_binance_data(limit=1000)
+data = add_technical_indicators(data)
+training_data, revealed_data = get_random_training_segment(data)
+
+# App layout - update the buttons section
+# App layout - remove Submit Analysis button
+app.layout = html.Div([
+    html.Div([
+        html.H1("Crypto TA Trainer", style={'margin': '2px', 'fontSize': '20px'}),
+        html.Div([
+            dcc.Dropdown(
+                id='pair-dropdown',
+                options=[{'label': 'BTC/USDT', 'value': 'BTC/USDT'}, {'label': 'ETH/USDT', 'value': 'ETH/USDT'}],
+                value='BTC/USDT',
+                style={'width': '150px', 'margin': '2px'}
+            ),
+            dcc.Dropdown(
+                id='timeframe-dropdown',
+                options=[
+                    {'label': '5 Minutes', 'value': '5m'},
+                    {'label': '15 Minutes', 'value': '15m'},
+                    {'label': '30 Minutes', 'value': '30m'},
+                    {'label': '1 Hour', 'value': '1h'},
+                    {'label': '4 Hours', 'value': '4h'},
+                    {'label': '1 Day', 'value': '1d'}
+                ],
+                value='1h',
+                style={'width': '150px', 'margin': '2px'}
+            ),
+            html.Button('New Chart', id='reset-button', n_clicks=0, style={'margin': '2px'}),
+            html.Button('⬆️ Up', id='up-button', n_clicks=0, style={'margin': '2px'}),
+            html.Button('⬇️ Down', id='down-button', n_clicks=0, style={'margin': '2px'}),
+            html.Div(id='mode-text', style={'margin': '2px'}),
+            html.Div(id='prediction-result', style={'margin': '2px', 'color': 'white'})
+        ], style={'display': 'flex', 'alignItems': 'center', 'height': '30px', 'gap': '10px'}),
+    ], style={'marginBottom': '0px', 'height': '50px', 'padding': '0px 10px'}),
+    dcc.Graph(
+        id='candlestick-graph',
+        config=config,
+        style={'height': 'calc(100vh - 50px)', 'marginTop': '0px'}
+    )
+], style={'width': '100%', 'height': '100vh', 'overflow': 'hidden', 'display': 'flex', 'flexDirection': 'column'})
+
+# Update callback - remove submit button input
+@app.callback(
+    [Output('candlestick-graph', 'figure'),
+     Output('mode-text', 'children'),
+     Output('prediction-result', 'children')],
+    [Input('reset-button', 'n_clicks'),
+     Input('up-button', 'n_clicks'),
+     Input('down-button', 'n_clicks'),
+     Input('pair-dropdown', 'value'),
+     Input('timeframe-dropdown', 'value')]
+)
+def update_graph(reset_clicks, up_clicks, down_clicks, pair, timeframe):
+    ctx = callback_context
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    prediction_result = ""
+    
+    try:
+        global training_data, revealed_data
+        fig = go.Figure()  # Create figure once
+
+        if button_id == 'reset-button' and reset_clicks > 0:
+            new_data = fetch_binance_data(pair=pair, timeframe=timeframe, limit=1000)
+            new_data = add_technical_indicators(new_data)
+            training_data, revealed_data = get_random_training_segment(new_data)
+            mode = 'Training Mode (First 50 Candles)'
+            # Add only training data
+            fig.add_trace(go.Candlestick(
+                x=training_data['time'],
+                open=training_data['open'],
+                high=training_data['high'],
+                low=training_data['low'],
+                close=training_data['close'],
+                increasing_line_color='#26A69A',
+                decreasing_line_color='#EF5350',
+                name='Training',
+                increasing_fillcolor='rgba(38, 166, 154, 0.8)',
+                decreasing_fillcolor='rgba(239, 83, 80, 0.8)',
+                line=dict(width=1),
+                whiskerwidth=0,
+            ))
+        elif button_id in ['up-button', 'down-button']:
+            if revealed_data is not None:
+                user_prediction = 'up' if button_id == 'up-button' else 'down'
+                candle_50_close = training_data.iloc[-1]['close']
+                candle_100_close = revealed_data.iloc[-1]['close']
+                actual_direction = 'up' if candle_100_close > candle_50_close else 'down'
+                is_correct = user_prediction == actual_direction
+                prediction_result = f"Prediction: {user_prediction.upper()} - {'✅ Correct!' if is_correct else '❌ Wrong!'}"
+                mode = 'Analysis Mode (All 100 Candles)'
+
+                # Add training data
+                fig.add_trace(go.Candlestick(
+                    x=training_data['time'],
+                    open=training_data['open'],
+                    high=training_data['high'],
+                    low=training_data['low'],
+                    close=training_data['close'],
+                    increasing_line_color='#26A69A',
+                    decreasing_line_color='#EF5350',
+                    name='Training',
+                    increasing_fillcolor='rgba(38, 166, 154, 0.8)',
+                    decreasing_fillcolor='rgba(239, 83, 80, 0.8)',
+                    line=dict(width=1),
+                    whiskerwidth=0,
+                ))
+
+                # Add revealed data with lower opacity
+                fig.add_trace(go.Candlestick(
+                    x=revealed_data['time'],
+                    open=revealed_data['open'],
+                    high=revealed_data['high'],
+                    low=revealed_data['low'],
+                    close=revealed_data['close'],
+                    increasing_line_color='rgba(38, 166, 154, 0.3)',
+                    decreasing_line_color='rgba(239, 83, 80, 0.3)',
+                    name='Revealed',
+                    increasing_fillcolor='rgba(38, 166, 154, 0.3)',
+                    decreasing_fillcolor='rgba(239, 83, 80, 0.3)',
+                    line=dict(width=1),
+                    whiskerwidth=0,
+                ))
+
+                # Add prediction arrow
+                arrow_color = '#00ff00' if user_prediction == 'up' else '#ff0000'
+                arrow_y = training_data.iloc[-1]['low'] if user_prediction == 'up' else training_data.iloc[-1]['high']
+                fig.add_annotation(
+                    x=training_data.iloc[-1]['time'],
+                    y=arrow_y,
+                    text='⬆️' if user_prediction == 'up' else '⬇️',
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=2,
+                    arrowcolor=arrow_color,
+                    font=dict(size=20, color=arrow_color),
+                    align='center'
+                )
+
+                # Center view on prediction point
+                fig.update_xaxes(
+                    range=[
+                        training_data.iloc[-20]['time'],
+                        revealed_data.iloc[20]['time']
+                    ]
+                )
+            else:
+                mode = 'Training Mode (First 50 Candles)'
+                # Add only training data
+                fig.add_trace(go.Candlestick(
+                    x=training_data['time'],
+                    open=training_data['open'],
+                    high=training_data['high'],
+                    low=training_data['low'],
+                    close=training_data['close'],
+                    increasing_line_color='#26A69A',
+                    decreasing_line_color='#EF5350',
+                    name='Candles',
+                    increasing_fillcolor='rgba(38, 166, 154, 0.8)',
+                    decreasing_fillcolor='rgba(239, 83, 80, 0.8)',
+                    line=dict(width=1),
+                    whiskerwidth=0,
+                ))
+        else:
+            mode = 'Training Mode (First 50 Candles)'
+            # Add only training data
+            fig.add_trace(go.Candlestick(
+                x=training_data['time'],
+                open=training_data['open'],
+                high=training_data['high'],
+                low=training_data['low'],
+                close=training_data['close'],
+                increasing_line_color='#26A69A',
+                decreasing_line_color='#EF5350',
+                name='Candles',
+                increasing_fillcolor='rgba(38, 166, 154, 0.8)',
+                decreasing_fillcolor='rgba(239, 83, 80, 0.8)',
+                line=dict(width=1),
+                whiskerwidth=0,
+            ))
+
+        # Common layout settings
+        fig.update_layout(
+            title=f"Crypto Chart ({pair}) - {mode}",
+            xaxis_title="Time",
+            yaxis_title="Price (USDT)",
+            height=None,  # Let the container control the height
+            template="plotly_dark",
+            dragmode='pan',
+            xaxis=dict(
+                tickformat="%Y-%m-%d %H:%M",
+                rangeslider=dict(visible=False),
+                type='date',
+                gridcolor='rgba(128,128,128,0.2)',
+                fixedrange=False,
+                scaleanchor=None,
+                constrain=None,
+                showspikes=True,
+                spikemode='across',
+                spikesnap='cursor',
+                showline=True,
+                showgrid=True
+            ),
+            yaxis=dict(
+                fixedrange=False,
+                scaleanchor=None,
+                constrain=None,
+                autorange=True,
+                type='linear',
+                gridcolor='rgba(128,128,128,0.2)',
+                showspikes=True,
+                spikemode='across',
+                spikesnap='cursor',
+                showline=True,
+                showgrid=True,
+                side='right'
+            ),
+            # Remove yaxis2 and yaxis3 definitions
+            plot_bgcolor='rgb(15,15,15)',
+            paper_bgcolor='rgb(15,15,15)',
+            margin=dict(t=10, b=10, r=20, l=20),
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01,
+                bgcolor='rgba(0,0,0,0.5)'
+            ),
+            hovermode='x unified'
+        )
+        # Add RR tools functionality
+        if button_id == 'candlestick-graph' and click_data:
+            point = click_data['points'][0]
+            x = point['x']
+            y = point['y']
+            
+            if 'Long RR' in ctx.triggered[0]['prop_id']:
+                fig.add_shape(type='line', x0=x, x1=x, y0=y*0.99, y1=y*1.01, 
+                            line=dict(color='blue', width=2))
+                fig.add_shape(type='line', x0=x, x1=x, y0=y*0.98, y1=y, 
+                            line=dict(color='red', width=2))
+                fig.add_shape(type='line', x0=x, x1=x, y0=y, y1=y*1.02, 
+                            line=dict(color='green', width=2))
+                fig.add_annotation(text='Long RR', x=x, y=y, showarrow=True)
+            elif 'Short RR' in ctx.triggered[0]['prop_id']:
+                fig.add_shape(type='line', x0=x, x1=x, y0=y*0.99, y1=y*1.01, 
+                            line=dict(color='blue', width=2))
+                fig.add_shape(type='line', x0=x, x1=x, y0=y, y1=y*1.02, 
+                            line=dict(color='red', width=2))
+                fig.add_shape(type='line', x0=x, x1=x, y0=y*0.98, y1=y, 
+                            line=dict(color='green', width=2))
+                fig.add_annotation(text='Short RR', x=x, y=y, showarrow=True)
+
+        return fig, f"Mode: {mode}", prediction_result
+    except Exception as e:
+        return go.Figure(), f"Error: {str(e)}", ""
+
+if __name__ == '__main__':
+    app.run(debug=True)
