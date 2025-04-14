@@ -205,12 +205,40 @@ config = {
 }
 
 # Function to get random training segment
+# Add after the get_random_training_segment function
+def find_valid_segments(df, segment_size=100, min_price_change=1.0):
+    valid_segments = []
+    
+    for i in range(0, len(df) - segment_size + 1):
+        segment = df.iloc[i:i + segment_size]
+        
+        # Calculate price change percentage in the segment
+        start_price = segment.iloc[0]['close']
+        end_price = segment.iloc[-1]['close']
+        price_change_pct = abs((end_price - start_price) / start_price * 100)
+        
+        # Check if segment has enough price movement
+        if price_change_pct >= min_price_change:
+            valid_segments.append(i)
+    
+    return valid_segments
+
+# Modify get_random_training_segment function
 def get_random_training_segment(df, segment_size=100):
     if len(df) < segment_size:
         return None, None
     
-    max_start = len(df) - segment_size
-    start_idx = random.randint(0, max_start)
+    # Find valid segments
+    valid_segments = find_valid_segments(df, segment_size)
+    
+    if not valid_segments:
+        # If no valid segments found, fall back to random selection
+        max_start = len(df) - segment_size
+        start_idx = random.randint(0, max_start)
+    else:
+        # Choose random segment from valid ones
+        start_idx = random.choice(valid_segments)
+    
     end_idx = start_idx + segment_size
     
     full_segment = df.iloc[start_idx:end_idx].copy()
