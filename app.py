@@ -8,10 +8,6 @@ from datetime import timedelta
 import random
 import ccxt
 
-# Initialize the Dash app
-app = Dash(__name__)
-server = app.server  # Expose server variable for Gunicorn
-
 # ===============================
 # DATA GENERATION AND FETCHING
 # ===============================
@@ -46,40 +42,39 @@ def generate_dummy_data(start_date, periods, timeframe):
 
 def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
     try:
-        exchange = ccxt.binance()
+        exchange = ccxt.binance({
+            'enableRateLimit': True,
+            # Add options to handle regional restrictions
+            'options': {
+                'defaultType': 'future',
+                'adjustForTimeDifference': True,
+                'recvWindow': 60000
+            }
+        })
         
-        # Calculate timestamps for 3 years of data
-        now = exchange.milliseconds()
-        three_years = 3 * 365 * 24 * 60 * 60 * 1000  # 3 years in milliseconds
-        start_timestamp = now - three_years
-        
-        all_ohlcv = []
-        current_timestamp = start_timestamp
-        
-        # Fetch data in chunks to avoid rate limits
-        while current_timestamp < now and len(all_ohlcv) < limit:
-            chunk = exchange.fetch_ohlcv(
+        # Fallback to dummy data if API fails
+        try:
+            now = exchange.milliseconds()
+            three_years = 3 * 365 * 24 * 60 * 60 * 1000
+            start_timestamp = now - three_years
+            
+            all_ohlcv = exchange.fetch_ohlcv(
                 pair, 
                 timeframe=timeframe,
-                since=current_timestamp,
-                limit=1000
+                since=start_timestamp,
+                limit=limit
             )
-            if not chunk:
-                break
-                
-            all_ohlcv.extend(chunk)
-            current_timestamp = chunk[-1][0] + 1
-        
-        # Take random subset of the historical data
-        if len(all_ohlcv) > limit:
-            start_idx = random.randint(0, len(all_ohlcv) - limit)
-            all_ohlcv = all_ohlcv[start_idx:start_idx + limit]
-        
-        df = pd.DataFrame(all_ohlcv, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
-        df['time'] = pd.to_datetime(df['time'], unit='ms')
-        return df
+            
+            df = pd.DataFrame(all_ohlcv, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
+            df['time'] = pd.to_datetime(df['time'], unit='ms')
+            return df
+            
+        except Exception as api_error:
+            print(f"Falling back to dummy data due to API error: {api_error}")
+            return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
+            
     except Exception as e:
-        print(f"Error fetching data: {e}")
+        print(f"Error in fetch_binance_data: {e}")
         return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
 
 # ===============================
@@ -483,6 +478,4 @@ def update_graph(reset_clicks, up_clicks, down_clicks, pair, timeframe):
 # APP ENTRY POINT
 # ===============================
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get('PORT', 8050))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(debug=True)
