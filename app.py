@@ -40,19 +40,16 @@ def generate_dummy_data(start_date, periods, timeframe):
     
     return df
 
-def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
+def fetch_market_data(pair='BTC/USDT', timeframe='1h', limit=200):
     try:
-        exchange = ccxt.binance({
+        exchange = ccxt.cryptocom({
             'enableRateLimit': True,
-            # Add options to handle regional restrictions
             'options': {
-                'defaultType': 'future',
                 'adjustForTimeDifference': True,
                 'recvWindow': 60000
             }
         })
         
-        # Fallback to dummy data if API fails
         try:
             now = exchange.milliseconds()
             three_years = 3 * 365 * 24 * 60 * 60 * 1000
@@ -74,8 +71,11 @@ def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
             return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
             
     except Exception as e:
-        print(f"Error in fetch_binance_data: {e}")
+        print(f"Error in fetch_market_data: {e}")
         return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
+
+# Update all references to fetch_binance_data to use fetch_market_data
+data = fetch_market_data(limit=1000)
 
 # ===============================
 # DATA PROCESSING
