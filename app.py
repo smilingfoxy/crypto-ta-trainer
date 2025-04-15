@@ -6,7 +6,6 @@ import plotly.graph_objs as go
 import pandas as pd
 from datetime import timedelta
 import random
-import yfinance as yf
 
 # ===============================
 # DATA GENERATION AND FETCHING
@@ -34,38 +33,15 @@ def generate_dummy_data(start_date, periods, timeframe):
     
     return df
 
-def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
+# Remove timeframe from function parameters
+def fetch_binance_data(pair='BTC/USDT', limit=200):
     try:
-        symbol_map = {
-            'BTC/USDT': 'BTC-USD',
-            'ETH/USDT': 'ETH-USD',
-            'XRP/USDT': 'XRP-USD',
-            'BNB/USDT': 'BNB-USD',
-            'SOL/USDT': 'SOL-USD',
-            'ADA/USDT': 'ADA-USD',
-            'DOGE/USDT': 'DOGE-USD',
-            'DOT/USDT': 'DOT-USD',
-            'MATIC/USDT': 'MATIC-USD'
-        }
+        symbol = pair.replace('/', '_').replace('USDT', 'USD')
+        data_path = f"d:/your_project/data/{symbol}_5m.csv"
+        df = pd.read_csv(data_path)
         
-        symbol = symbol_map.get(pair, 'BTC-USD')
-        
-        # Fetch data from Yahoo Finance
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(period='60d', interval=timeframe)
-        
-        # Basic OHLC data only
-        df = df[['Open', 'High', 'Low', 'Close']]
-        df = df.rename(columns={
-            'Open': 'open',
-            'High': 'high',
-            'Low': 'low',
-            'Close': 'close'
-        })
-        
-        # Reset index to make datetime a column
-        df = df.reset_index()
-        df = df.rename(columns={'Datetime': 'time', 'Date': 'time'})
+        # Convert time column to datetime
+        df['time'] = pd.to_datetime(df['time'])
         
         # Take the last 'limit' rows
         if len(df) > limit:
@@ -74,7 +50,7 @@ def fetch_binance_data(pair='BTC/USDT', timeframe='1h', limit=200):
         return df
         
     except Exception as e:
-        print(f"Error fetching data: {e}")
+        print(f"Error loading data: {e}")
         return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
 
 # ===============================
@@ -352,10 +328,9 @@ app.layout = html.Div([
     [Input('reset-button', 'n_clicks'),
      Input('up-button', 'n_clicks'),
      Input('down-button', 'n_clicks'),
-     Input('pair-dropdown', 'value'),
-     Input('timeframe-dropdown', 'value')]
+     Input('pair-dropdown', 'value')]  # Remove timeframe-dropdown Input
 )
-def update_graph(reset_clicks, up_clicks, down_clicks, pair, timeframe):
+def update_graph(reset_clicks, up_clicks, down_clicks, pair):  # Remove timeframe parameter
     ctx = callback_context
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     prediction_result = ""
