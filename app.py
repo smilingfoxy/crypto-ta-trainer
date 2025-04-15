@@ -6,59 +6,11 @@ import plotly.graph_objs as go
 import pandas as pd
 from datetime import timedelta
 import random
+import os
 
 # ===============================
 # DATA GENERATION AND FETCHING
 # ===============================
-def generate_dummy_data(start_date, periods, timeframe):
-    # Always use 5-minute intervals regardless of timeframe parameter
-    time_delta = timedelta(minutes=5)
-    times = [start_date + i * time_delta for i in range(periods)]
-    
-    base_price = 85000
-    prices = []
-    current_price = base_price
-    for i in range(periods):
-        change = (random.random() - 0.5) * 200  # Random change between -100 and +100
-        current_price += change
-        prices.append(current_price)
-    
-    df = pd.DataFrame({
-        'time': times,
-        'open': prices,
-        'close': [p + (random.random() - 0.5) * 50 for p in prices],
-        'high': [p + abs(random.random() * 100) for p in prices],
-        'low': [p - abs(random.random() * 100) for p in prices]
-    })
-    
-    return df
-
-# Add os import at the top
-import os
-
-# Update fetch_binance_data function
-def fetch_binance_data(pair='BTC/USDT', limit=200):
-    try:
-        symbol = pair.replace('/', '_').replace('USDT', 'USD')
-        # Use os.path.join for cross-platform compatibility
-        data_path = os.path.join(os.path.dirname(__file__), 'data', f'{symbol}_5m.csv')
-        df = pd.read_csv(data_path)
-        
-        # Convert time column to datetime
-        df['time'] = pd.to_datetime(df['time'])
-        
-        # Take the last 'limit' rows
-        if len(df) > limit:
-            df = df.tail(limit)
-        
-        return df
-        
-    except Exception as e:
-        print(f"Error loading data: {e}")
-        # Remove timeframe parameter since we're not using it
-        return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit)
-
-# Update generate_dummy_data function
 def generate_dummy_data(start_date, periods):
     # Remove timeframe parameter since we're only using 5m
     time_delta = timedelta(minutes=5)
@@ -81,6 +33,23 @@ def generate_dummy_data(start_date, periods):
     })
     
     return df
+
+# Update fetch_binance_data function
+def fetch_binance_data(pair='BTC/USDT', limit=200):
+    try:
+        symbol = pair.replace('/', '_').replace('USDT', 'USD')
+        # Use relative path for data files
+        data_path = os.path.join('data', f'{symbol}_5m.csv')
+        df = pd.read_csv(data_path)
+        
+        df['time'] = pd.to_datetime(df['time'])
+        if len(df) > limit:
+            df = df.tail(limit)
+        return df
+        
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit)
 
 # ===============================
 # DATA PROCESSING
@@ -258,24 +227,7 @@ app.layout = html.Div([
                     'color': 'white'
                 }
             ),
-            dcc.Dropdown(
-                id='timeframe-dropdown',
-                options=[
-                    {'label': '5 Minutes', 'value': '5m'},
-                    {'label': '15 Minutes', 'value': '15m'},
-                    {'label': '30 Minutes', 'value': '30m'},
-                    {'label': '1 Hour', 'value': '1h'},
-                    {'label': '4 Hours', 'value': '4h'},
-                    {'label': '1 Day', 'value': '1d'}
-                ],
-                value='1h',
-                style={
-                    'width': '150px',
-                    'margin': '2px',
-                    'backgroundColor': 'rgb(25,25,25)',
-                    'color': 'white'
-                }
-            ),
+            # Remove timeframe-dropdown here
             html.Button('New Chart', id='reset-button', n_clicks=0, 
                 style={
                     'margin': '2px',
@@ -359,7 +311,7 @@ app.layout = html.Div([
      Input('down-button', 'n_clicks'),
      Input('pair-dropdown', 'value')]  # Remove timeframe-dropdown Input
 )
-def update_graph(reset_clicks, up_clicks, down_clicks, pair):  # Remove timeframe parameter
+def update_graph(reset_clicks, up_clicks, down_clicks, pair):
     ctx = callback_context
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     prediction_result = ""
@@ -369,9 +321,9 @@ def update_graph(reset_clicks, up_clicks, down_clicks, pair):  # Remove timefram
         global training_data, revealed_data
         fig = go.Figure()
 
-        # Auto-refresh on pair or timeframe change
-        if button_id in ['pair-dropdown', 'timeframe-dropdown', 'reset-button']:
-            new_data = fetch_binance_data(pair=pair, timeframe=timeframe, limit=1000)
+        # Load new data after prediction or reset
+        if button_id in ['pair-dropdown', 'reset-button'] or (button_id in ['up-button', 'down-button'] and revealed_data is not None):
+            new_data = fetch_binance_data(pair=pair, limit=1000)
             new_data = add_technical_indicators(new_data)
             training_data, revealed_data = get_random_training_segment(new_data)
             mode = 'Training Mode (First 50 Candles)'
@@ -513,4 +465,4 @@ def update_graph(reset_clicks, up_clicks, down_clicks, pair):  # Remove timefram
 # APP ENTRY POINT
 # ===============================
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000, debug=False)
+    app.run(debug=True, port=8050)
