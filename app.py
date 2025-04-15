@@ -12,15 +12,9 @@ import yfinance as yf
 # DATA GENERATION AND FETCHING
 # ===============================
 def generate_dummy_data(start_date, periods, timeframe):
-    time_delta = {
-        '5m': timedelta(minutes=5),
-        '15m': timedelta(minutes=15),
-        '30m': timedelta(minutes=30),
-        '1h': timedelta(hours=1),
-        '4h': timedelta(hours=4),
-        '1d': timedelta(days=1)
-    }
-    times = [start_date + i * time_delta[timeframe] for i in range(periods)]
+    # Always use 5-minute intervals regardless of timeframe parameter
+    time_delta = timedelta(minutes=5)
+    times = [start_date + i * time_delta for i in range(periods)]
     
     base_price = 85000
     prices = []
