@@ -33,11 +33,15 @@ def generate_dummy_data(start_date, periods, timeframe):
     
     return df
 
-# Remove timeframe from function parameters
+# Add os import at the top
+import os
+
+# Update fetch_binance_data function
 def fetch_binance_data(pair='BTC/USDT', limit=200):
     try:
         symbol = pair.replace('/', '_').replace('USDT', 'USD')
-        data_path = f"d:/your_project/data/{symbol}_5m.csv"
+        # Use os.path.join for cross-platform compatibility
+        data_path = os.path.join(os.path.dirname(__file__), 'data', f'{symbol}_5m.csv')
         df = pd.read_csv(data_path)
         
         # Convert time column to datetime
@@ -51,7 +55,32 @@ def fetch_binance_data(pair='BTC/USDT', limit=200):
         
     except Exception as e:
         print(f"Error loading data: {e}")
-        return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit, timeframe)
+        # Remove timeframe parameter since we're not using it
+        return generate_dummy_data(pd.to_datetime('2025-04-05 00:00:00'), limit)
+
+# Update generate_dummy_data function
+def generate_dummy_data(start_date, periods):
+    # Remove timeframe parameter since we're only using 5m
+    time_delta = timedelta(minutes=5)
+    times = [start_date + i * time_delta for i in range(periods)]
+    
+    base_price = 85000
+    prices = []
+    current_price = base_price
+    for i in range(periods):
+        change = (random.random() - 0.5) * 200  # Random change between -100 and +100
+        current_price += change
+        prices.append(current_price)
+    
+    df = pd.DataFrame({
+        'time': times,
+        'open': prices,
+        'close': [p + (random.random() - 0.5) * 50 for p in prices],
+        'high': [p + abs(random.random() * 100) for p in prices],
+        'low': [p - abs(random.random() * 100) for p in prices]
+    })
+    
+    return df
 
 # ===============================
 # DATA PROCESSING
