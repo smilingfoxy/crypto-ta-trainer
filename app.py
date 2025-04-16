@@ -321,8 +321,8 @@ def update_graph(reset_clicks, up_clicks, down_clicks, pair):
         global training_data, revealed_data
         fig = go.Figure()
 
-        # Load new data after prediction or reset
-        if button_id in ['pair-dropdown', 'reset-button'] or (button_id in ['up-button', 'down-button'] and revealed_data is not None):
+        # Only load new data on reset or pair change
+        if button_id in ['pair-dropdown', 'reset-button']:
             new_data = fetch_binance_data(pair=pair, limit=1000)
             new_data = add_technical_indicators(new_data)
             training_data, revealed_data = get_random_training_segment(new_data)
